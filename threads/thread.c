@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list sleep_list; /* Sleep Queue 선언 */
+static int64_t global_tick; /* 글로벌 변수 tick 선언 */
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -109,6 +112,8 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list); /* Sleep List 초기화 */
+	global_tick = INT64_MAX; /* global tick 초기화 */
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -216,8 +221,8 @@ thread_create (const char *name, int priority,
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
-void
-thread_block (void) {
+void 
+thread_block (void) { // Thread 를 Block 하는 함수 
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
 	thread_current ()->status = THREAD_BLOCKED;
@@ -232,7 +237,7 @@ thread_block (void) {
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
-void
+void // Thread 를 깨우는 함수 Wakeup 
 thread_unblock (struct thread *t) {
 	enum intr_level old_level;
 
@@ -243,6 +248,38 @@ thread_unblock (struct thread *t) {
 	list_push_back (&ready_list, &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+}
+
+/* Thread Sleep, Ready List -> Sleep List 로 옮긴다 */
+void thread_sleep(int64_t tick) { 
+	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
+	struct thread* current_thread = thread_current();
+
+	current_thread->wakeup_tick = tick;
+	list_insert_ordered(&sleep_list, &current_thread->elem, compare_sleep_list, NULL);
+	thread_block();
+
+	intr_set_level(intr_lv); /* 인터럽트 원상복구 */
+}
+
+/* Thread Wakeup */
+void thread_wakeup(int64_t tick) {
+	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
+
+	struct list_elem *iter;
+	struct thread* current_thread;
+
+	for(iter = list_begin(&sleep_list); iter != list_end(&sleep_list);){
+		current_thread = list_entry(iter, struct thread, elem);
+
+		if(current_thread->wakeup_tick <= tick){
+			iter = list_remove(&current_thread->elem);
+			thread_unblock(current_thread);
+		}
+		else
+			break;
+	}
+	intr_set_level(intr_lv); /* 인터럽트 원상복구 */
 }
 
 /* Returns the name of the running thread. */
@@ -587,4 +624,21 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+bool compare_sleep_list(const struct list_elem *a, const struct list_elem *b)
+{
+	// list_entry 매크로를 사용하는 것만으로도 충분함.
+	// b는 단수만 비교, a는 모든 것을 순회 비교.
+	struct thread *thread_a = list_entry(a, struct thread, elem);
+	struct thread *thread_b = list_entry(b, struct thread, elem);
+   	return thread_a->wakeup_tick < thread_b->wakeup_tick;
+}
+
+/* wakeup_time 기준으로 리스트를 정렬하기 위한 비교 함수 */
+static bool
+wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(a, struct thread, elem);
+	return t_a->wakeup_tick < t_b->wakeup_tick; // a 가 크면 True, b 가 크면 False
 }
