@@ -253,11 +253,12 @@ thread_unblock (struct thread *t) {
 /* Thread Sleep, Ready List -> Sleep List 로 옮긴다 */
 void thread_sleep(int64_t tick) { 
 	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
-	struct thread* current_thread = thread_current();
+	struct thread* current_thread = thread_current(); /* 현재 thread 생성 */
 
-	current_thread->wakeup_tick = tick;
+	current_thread->wakeup_tick = tick; /* 현재 thread 가 깨어날 시간을 tick 으로 설정 */
+	/* Sleep List 에 현재 thread 삽입 + compare_sleep_list 를 이용하여 순서 정렬 */
 	list_insert_ordered(&sleep_list, &current_thread->elem, compare_sleep_list, NULL);
-	thread_block();
+	thread_block(); /* 현재 thread 를 차단 상태로 변경해서 Ready List 에서 제거 */
 
 	intr_set_level(intr_lv); /* 인터럽트 원상복구 */
 }
@@ -274,7 +275,7 @@ void thread_wakeup(int64_t tick) {
 
 		if(current_thread->wakeup_tick <= tick){
 			iter = list_remove(&current_thread->elem);
-			thread_unblock(current_thread);
+			thread_unblock(current_thread); /* Thread 를 Ready 상태로 전환 */
 		}
 		else
 			break;
@@ -635,10 +636,3 @@ bool compare_sleep_list(const struct list_elem *a, const struct list_elem *b)
    	return thread_a->wakeup_tick < thread_b->wakeup_tick;
 }
 
-/* wakeup_time 기준으로 리스트를 정렬하기 위한 비교 함수 */
-static bool
-wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread *t_a = list_entry(a, struct thread, elem);
-	struct thread *t_b = list_entry(a, struct thread, elem);
-	return t_a->wakeup_tick < t_b->wakeup_tick; // a 가 크면 True, b 가 크면 False
-}
