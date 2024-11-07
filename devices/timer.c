@@ -29,7 +29,6 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
-
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -91,19 +90,17 @@ timer_elapsed (int64_t then) {
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks (); // 현재 시간을 받아온다 
+	int64_t start = timer_ticks ();
 
-	// 인터럽트 수준이 INTR_ON 인지 확인 
 	ASSERT (intr_get_level () == INTR_ON);
 
 	// start 이후 얼마나 시간이 지났는지 측정 
-	// 경과 시간이 ticks 보다 작으면 start+tick 만큼 잠들게 한다
+	// 경과 시간이 tickets 보다 작으면 start+ticks 만큼 잠들게 한다 
 	if (timer_elapsed (start) < ticks)
-		thread_sleep(start + ticks);
-
-	/* 경과 시간이 ticks 보다 작으면 Thread 양보 
-	while (timer_elapsed (start) < ticks)
-		thread_yield (); */
+		thread_sleep(start + ticks); 
+	
+	/* while (timer_elapsed (start) < ticks)
+	 	thread_yield (); */
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -134,15 +131,9 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	thread_tick (); // update the cpu usage for running process
+	thread_tick ();
 
-	/* code to add: 
-	check sleep list and the global tick.
-	find any threads to wake up,
-	move them to the ready list if necessary.
-	update the global tick.
-	*/
-	thread_wakeup(ticks); /* ticks 가 증가할 때마다 wakeup */
+	thread_wakeup(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

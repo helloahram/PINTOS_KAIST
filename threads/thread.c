@@ -22,15 +22,12 @@
 
 /* Random value for basic thread
    Do not modify this value. */
-#define t_bASIC 0xd42df210
+#define THREAD_BASIC 0xd42df210
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
-static struct list sleep_list; /* Sleep Queue 선언 */
-static int64_t global_tick; /* 글로벌 변수 tick 선언 */
-static bool wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -113,8 +110,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
-	list_init (&sleep_list); /* Sleep List 초기화 */
-	global_tick = INT64_MAX; /* global tick 초기화 */
+	list_init (&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -222,8 +218,8 @@ thread_create (const char *name, int priority,
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
-void 
-thread_block (void) { // Thread 를 Block 하는 함수 
+void
+thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
 	thread_current ()->status = THREAD_BLOCKED;
@@ -238,7 +234,7 @@ thread_block (void) { // Thread 를 Block 하는 함수
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
-void // Thread 를 깨우는 함수 Wakeup 
+void
 thread_unblock (struct thread *t) {
 	enum intr_level old_level;
 
@@ -265,7 +261,6 @@ void thread_sleep(int64_t tick) {
 	intr_set_level(intr_lv); /* 인터럽트 원상복구 */
 }
 
-/* Thread Wakeup */
 /* Thread Wakeup */
 void thread_wakeup(int64_t tick) {
 	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
@@ -628,14 +623,6 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
-}
-
-/* wakeup_time 기준으로 리스트를 정렬하기 위한 비교 함수 */
-static bool
-wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread *t_a = list_entry(a, struct thread, elem);
-	struct thread *t_b = list_entry(a, struct thread, elem);
-	return t_a->wakeup_tick < t_b->wakeup_tick; // a 가 크면 True, b 가 크면 False
 }
 
 /* wakeup_time을 기준으로 리스트를 정렬하기 위한 비교 함수 */
