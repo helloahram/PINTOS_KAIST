@@ -28,7 +28,7 @@ static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
-static bool wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -142,6 +142,7 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	move them to the ready list if necessary.
 	update the global tick.
 	*/
+	thread_wakeup(ticks); /* ticks 가 증가할 때마다 wakeup */
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -199,12 +200,4 @@ real_time_sleep (int64_t num, int32_t denom) {
 		ASSERT (denom % 1000 == 0);
 		busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
 	}
-}
-
-/* wakeup_time 기준으로 리스트를 정렬하기 위한 비교 함수 */
-static bool
-wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-	struct thread *t_a = list_entry(a, struct thread, elem);
-	struct thread *t_b = list_entry(a, struct thread, elem);
-	return t_a->wakeup_tick < t_b->wakeup_tick; // a 가 크면 True, b 가 크면 False
 }

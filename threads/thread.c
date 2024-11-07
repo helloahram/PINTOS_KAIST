@@ -22,7 +22,7 @@
 
 /* Random value for basic thread
    Do not modify this value. */
-#define THREAD_BASIC 0xd42df210
+#define t_bASIC 0xd42df210
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -30,6 +30,7 @@ static struct list ready_list;
 
 static struct list sleep_list; /* Sleep Queue 선언 */
 static int64_t global_tick; /* 글로벌 변수 tick 선언 */
+static bool wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -250,12 +251,13 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
-/* Thread Sleep, Ready List -> Sleep List 로 옮긴다 */
+/* Thread Sleep, Ready List -> Sleep List 로 이동하여 대기 상태로 만든다 */
 void thread_sleep(int64_t tick) { 
 	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
-	struct thread* current_thread = thread_current(); /* 현재 thread 생성 */
+	struct thread* current_thread = thread_current(); /* 현재 실행 중인 thread 를 가져온다 */
 
 	current_thread->wakeup_tick = tick; /* 현재 thread 가 깨어날 시간을 tick 으로 설정 */
+	
 	/* Sleep List 에 현재 thread 삽입 + compare_sleep_list 를 이용하여 순서 정렬 */
 	list_insert_ordered(&sleep_list, &current_thread->elem, compare_sleep_list, NULL);
 	thread_block(); /* 현재 thread 를 차단 상태로 변경해서 Ready List 에서 제거 */
@@ -263,6 +265,7 @@ void thread_sleep(int64_t tick) {
 	intr_set_level(intr_lv); /* 인터럽트 원상복구 */
 }
 
+/* Thread Wakeup */
 /* Thread Wakeup */
 void thread_wakeup(int64_t tick) {
 	enum intr_level intr_lv = intr_disable(); /* 인터럽트 비활성화 */
@@ -273,8 +276,8 @@ void thread_wakeup(int64_t tick) {
 	for(iter = list_begin(&sleep_list); iter != list_end(&sleep_list);){
 		current_thread = list_entry(iter, struct thread, elem);
 
-		if(current_thread->wakeup_tick <= tick){
-			iter = list_remove(&current_thread->elem);
+		if(current_thread->wakeup_tick <= tick){ /* Thread 가 일어날 시간인지 확인 */
+			iter = list_remove(&current_thread->elem); /* Sleep List 에서 제거. */
 			thread_unblock(current_thread); /* Thread 를 Ready 상태로 전환 */
 		}
 		else
@@ -627,12 +630,19 @@ allocate_tid (void) {
 	return tid;
 }
 
-bool compare_sleep_list(const struct list_elem *a, const struct list_elem *b)
-{
-	// list_entry 매크로를 사용하는 것만으로도 충분함.
-	// b는 단수만 비교, a는 모든 것을 순회 비교.
-	struct thread *thread_a = list_entry(a, struct thread, elem);
-	struct thread *thread_b = list_entry(b, struct thread, elem);
-   	return thread_a->wakeup_tick < thread_b->wakeup_tick;
+/* wakeup_time 기준으로 리스트를 정렬하기 위한 비교 함수 */
+static bool
+wakeup_tick_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(a, struct thread, elem);
+	return t_a->wakeup_tick < t_b->wakeup_tick; // a 가 크면 True, b 가 크면 False
 }
 
+/* wakeup_time을 기준으로 리스트를 정렬하기 위한 비교 함수 */
+bool compare_sleep_list(const struct list_elem *a, const struct list_elem *b)
+{
+	/* list_entry 매크로를 사용하여 b는 단수만 비교, a는 모든 것을 순회 비교 */
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(b, struct thread, elem);
+   	return t_a->wakeup_tick < t_b->wakeup_tick;
+}
