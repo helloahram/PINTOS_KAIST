@@ -208,6 +208,10 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
+	/* compare the priorities of the currently running thread 
+	and the newly inserted one. Yield the CPU 
+	if the newly arriving thread has higher priority*/
+	preempt_priority(); /* CPU 양보 함수 추가 */
 
 	return tid;
 }
@@ -242,7 +246,9 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	// list_push_back (&ready_list, &t->elem); /* ready_list 에 Thread 추가 */
+	/* thread_compare_priority 를 활용하여 우선순위 비교하고 ready_list 에 추가하기 */
+	list_insert_ordered(&ready_list, &t->elem, thread_compare_priority, 0);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -339,7 +345,9 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		// list_push_back (&ready_list, &curr->elem); /* ready_list 에 Thread 추가 */
+		/* thread_compare_priority 를 활용하여 우선순위 비교하고 ready_list 에 추가하기 */
+		list_insert_ordered (&ready_list, &curr->elem, thread_compare_priority, 0);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -348,6 +356,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	preempt_priority(); /* CPU 양보 함수 추가 */
 }
 
 /* Returns the current thread's priority. */
@@ -577,11 +586,11 @@ do_schedule(int status) {
 static void
 schedule (void) {
 	struct thread *curr = running_thread ();
-	struct thread *next = next_thread_to_run ();
+	struct thread *next = next_thread_to_run (); /* CPU 의 점유권을 받는 함수 */
 
-	ASSERT (intr_get_level () == INTR_OFF);
-	ASSERT (curr->status != THREAD_RUNNING);
-	ASSERT (is_thread (next));
+	ASSERT (intr_get_level () == INTR_OFF); /* INTR OFF 상태 확인 */
+	ASSERT (curr->status != THREAD_RUNNING); /* RUNNING 상태 아님 확인 */
+	ASSERT (is_thread (next)); /* next 가 올바른 Thread 인지 검증 */
 	/* Mark us as running. */
 	next->status = THREAD_RUNNING;
 
@@ -632,4 +641,29 @@ bool compare_sleep_list(const struct list_elem *a, const struct list_elem *b)
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
    	return t_a->wakeup_tick < t_b->wakeup_tick;
+}
+
+/* Thread 의 Priority 를 비교하는 함수 */
+bool thread_compare_priority (struct list_elem *l, struct list_elem *s, void *aux UNUSED) {
+	return list_entry (l, struct thread, elem)->priority
+		 > list_entry(s, struct thread, elem)->priority;
+}
+
+/* Running Thread 와 Ready List 맨 앞 Thread 의 Priority 비교 */
+void preempt_priority (void) {
+	
+	// if(!list_empty (&ready_list) && thread_current()->priority < 
+	// list_entry (list_front (&ready_list), struct thread, elem)->priority)
+	// 	thread_yield();
+
+    if (thread_current() == idle_thread)
+        return;
+    if (list_empty(&ready_list))
+        return;
+    struct thread *curr = thread_current();
+    struct thread *ready = list_entry(list_front(&ready_list), struct thread, elem);
+    /* Running Thread 와 ready_list 맨 앞 Thread 의 Priority 비교하고
+	ready_list Thread 가 더 높다면, yield 로 CPU 를 양보해준다 */
+	if (curr->priority < ready->priority) 
+        thread_yield();
 }

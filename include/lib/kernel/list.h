@@ -7,7 +7,7 @@
  * use of dynamically allocated memory.  Instead, each structure
  * that is a potential list element must embed a struct list_elem
  * member.  All of the list functions operate on these `struct
- * list_elem's.  The list_entry macro allows conversion from a
+ * list_elem's.  The  macro allows conversion from a
  * struct list_elem back to a structure object that contains it.
 
  * For example, suppose there is a needed for a list of `struct

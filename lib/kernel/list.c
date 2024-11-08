@@ -9,9 +9,9 @@
 
    An empty list looks like this:
 
-   +------+     +------+
+   .   +------+     +------+
    <---| head |<--->| tail |--->
-   +------+     +------+
+   .   +------+     +------+
 
    A list with two elements in it looks like this:
 
@@ -159,7 +159,7 @@ list_insert (struct list_elem *before, struct list_elem *elem) {
 	ASSERT (elem != NULL);
 
 	elem->prev = before->prev;
-	elem->next = before;
+	elem->next = before; /* elem 은 e 의 앞에 삽입된다 */
 	before->prev->next = elem;
 	before->prev = elem;
 }
